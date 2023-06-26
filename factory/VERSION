@@ -1,0 +1,4 @@
+#! /bin/bash
+name=bf-docker-factory
+version=alpine3.18-dind-ovs_2.17
+registry=10.64.38.13:5000

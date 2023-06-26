@@ -1,0 +1,24 @@
+#!/bin/bash -xe
+
+if [ ! -f "/root/contexts.csv" ]; then
+    echo "Cannot run factory without docker context !!"
+    echo "Please mount a contexts.csv file at /root/contexts.csv !!"
+    exit 1
+fi
+
+# Read and process the CSV file
+while IFS=',' read -r context host port username password
+do
+    ssh-keyscan -H $host >> /root/.ssh/known_hosts
+    sshpass -p $password ssh-copy-id -p $port $username@$host
+    docker context create $context --docker host="ssh://$username@$host:$port"
+
+done < /root/contexts.csv
+
+
+if [ $# -gt 0 ]; then
+    /usr/bin/supervisord -c /etc/supervisord.conf
+    exec "$@"
+else
+    /usr/bin/supervisord -n -c /etc/supervisord.conf
+fi
