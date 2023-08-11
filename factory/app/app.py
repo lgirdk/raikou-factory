@@ -1,6 +1,6 @@
 """Docker Orchestration API code."""
 
-from typing import Any, Optional
+from typing import Any
 
 from docker_orchestrator import (
     VolumeMounts,
@@ -10,7 +10,7 @@ from docker_orchestrator import (
 )
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 APP = FastAPI()
 
@@ -23,7 +23,9 @@ class ComposeContent(BaseModel):
 
     yaml_content: str
     context: str
-    additional_args: Optional[str]
+    additional_args: str = Field(
+        default="", description="Additional docker compose arguments"
+    )
 
 
 class ComposeContentWithFiles(BaseModel):
@@ -32,7 +34,9 @@ class ComposeContentWithFiles(BaseModel):
     yaml_content: str
     context: str
     mounts: dict[str, VolumeMounts]
-    additional_args: Optional[str]
+    additional_args: str = Field(
+        default="", description="Additional docker compose arguments"
+    )
 
 
 @APP.post("/docker-compose")

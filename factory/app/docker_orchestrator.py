@@ -1,18 +1,19 @@
 """Docker Orchestration code."""
 
 import asyncio
+import json
 import os
 import subprocess
-import json
 from functools import cache
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any
 from urllib.parse import urlparse
 
 import asyncssh
 import yaml
 from fastapi import HTTPException
 from sftp import copy_files
+from typing_extensions import TypedDict
 
 # Dictionary to store context locks
 _CONTEXT_LOCKS: dict[str, bool] = {}

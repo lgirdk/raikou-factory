@@ -8,8 +8,8 @@ RUN apk add -u --no-cache \
     python3=3.11.4-r0 \
     py3-pip=23.1.2-r0 \
     bash=5.2.15-r5 \
-    openrc=0.47.1-r0 \
-    openssh=9.3_p1-r3 \
+    openrc=0.48-r0 \
+    openssh=9.3_p2-r0 \
     sshpass=1.10-r0 \
     uuidgen=2.38.1-r8 \
     iproute2=6.3.0-r0 \
