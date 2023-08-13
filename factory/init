@@ -6,15 +6,20 @@ if [ ! -f "/root/contexts.csv" ]; then
     exit 1
 fi
 
+configure_ssh() {
+    echo "ControlMaster     auto
+ControlPath       ~/.ssh/control-%C
+ControlPersist    yes" >/root/.ssh/config
+}
+
 # Read and process the CSV file
-while IFS=',' read -r context host port username password
-do
-    ssh-keyscan -H $host >> /root/.ssh/known_hosts
+while IFS=',' read -r context host port username password; do
+    configure_ssh
+    ssh-keyscan -H $host >>/root/.ssh/known_hosts
     sshpass -p $password ssh-copy-id -p $port $username@$host
     docker context create $context --docker host="ssh://$username@$host:$port"
 
-done < /root/contexts.csv
-
+done </root/contexts.csv
 
 if [ $# -gt 0 ]; then
     /usr/bin/supervisord -c /etc/supervisord.conf
