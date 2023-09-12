@@ -5,7 +5,7 @@ WORKDIR /root
 COPY requirements.txt requirements.txt
 
 RUN apk add -u --no-cache \
-    python3=3.11.4-r0 \
+    python3=3.11.5-r0 \
     py3-pip=23.1.2-r0 \
     bash=5.2.15-r5 \
     openrc=0.48-r0 \
