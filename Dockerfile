@@ -1,11 +1,15 @@
 FROM docker:24.0.5-dind-alpine3.18
 
+LABEL maintainer="ktewari@libertyglobal.com"
+LABEL version="alpine3.18-dind-24.0.5"
+
 WORKDIR /root
 
 COPY requirements.txt requirements.txt
+COPY ./app app
 
 RUN apk add -u --no-cache \
-    python3=3.11.5-r0 \
+    python3=3.11.6-r0 \
     py3-pip=23.1.2-r0 \
     bash=5.2.15-r5 \
     openrc=0.48-r0 \
@@ -22,10 +26,10 @@ RUN apk add -u --no-cache \
     \
     # Install python dependencies
     python3 -m pip --no-cache-dir install -U pip wheel && \
-    python3 -m pip --no-cache-dir install -r requirements.txt
+    python3 -m pip --no-cache-dir install -r requirements.txt  && \
+    chmod +x app/init
 
-COPY init init
-COPY ./app app
+
 
 # Add supervisord configuration file
 COPY ./config/supervisord.conf /etc/supervisord.conf
@@ -34,4 +38,4 @@ ENV PYTHONPATH "${PYTHONPATH}:/root/app/"
 
 EXPOSE 8000
 
-ENTRYPOINT [ "/root/init" ]
+ENTRYPOINT [ "app/init" ]

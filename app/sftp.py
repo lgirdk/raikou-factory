@@ -12,7 +12,7 @@ async def copy_files(
 
     Files are copied over SSH using asyncssh.
 
-    :param files: List of tuples containing the local path and remote path for each file.
+    :param files: The local path and remote path for each file.
     :type files: list[tuple[str, str]]
     :param ip_address: Remote server IP address.
     :type ip_address: str
