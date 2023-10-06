@@ -35,10 +35,10 @@ async def copy_mount_files(
     is represented as a dictionary with 'source' and 'file' keys.
 
     The 'source' key specifies the source path of the target host in the
-    Docker Compose YAML file, and the 'file' key contains the binary data
+    Docker Compose file, and the 'file' key contains the binary data
     of the file to be copied.
 
-    The function updates the Docker Compose YAML file with the actual source
+    The function updates the Docker Compose file with the actual source
     path and then copies the mount files to the remote server using SSH.
 
     :param mounts: Dictionary of mount points and corresponding files.
@@ -47,7 +47,7 @@ async def copy_mount_files(
     :type compose_config: str
     :param ssh_url: SSH URL of the remote server.
     :type ssh_url: str
-    :return: updated yaml content
+    :return: updated compose content
     :rtype: str
     :raises HTTPException: If there's an error copying the files over SSH.
     """
@@ -141,7 +141,7 @@ async def docker_inspect_containers(context: str) -> dict[str, Any]:
         docker_host = docker_context_ls()[context]
         os.environ["DOCKER_HOST"] = docker_host
 
-        file_path = f"/tmp/docker-compose_{context}.yaml"
+        file_path = f"/tmp/docker-compose_{context}.json"
 
         # Run the docker-compose command asynchronously
         command = ["docker", "compose", "-f", file_path, "ps", "-aq"]
@@ -187,7 +187,7 @@ async def docker_inspect_containers(context: str) -> dict[str, Any]:
 
 
 async def docker_compose_run(
-    yaml_content: str,
+    compose_content: str,
     context: str,
     mounts: None | dict[str, VolumeMounts] = None,
     additional_args: None | str = "",
@@ -196,11 +196,11 @@ async def docker_compose_run(
 
     If ```mounts``` are provided:
         - The key needs to be an env variable that can be substituted
-          inside the yaml_content.
+          inside the compose_content.
         - If the key is not provided raise an exception with error code 415.
 
-    :param yaml_content: The Docker Compose YAML content.
-    :type yaml_content: str
+    :param compose_content: The Docker Compose content.
+    :type compose_content: str
     :param context: The target Docker context.
     :type context: str
     :param mounts: File mounts for each service.
@@ -209,7 +209,7 @@ async def docker_compose_run(
                             ```--force-recreate --pull-always```
     :type additional_args: Optional[str]
     :raises HTTPException: error code 409 if target context already in use.
-    :raises HTTPException: error code 400 if invalid YAML file provided.
+    :raises HTTPException: error code 400 if invalid Compose file provided.
     :return: Dictionary containing the stdout, stderr, and returncode of
              the docker-compose command.
     :rtype: dict[str, str|int]
@@ -222,9 +222,9 @@ async def docker_compose_run(
     original_docker_host = os.environ.get("DOCKER_HOST")
     services_requested: dict
     try:
-        # Check YAML syntax
+        # Check Compose syntax
         try:
-            compose_config = yaml.safe_load(yaml_content)
+            compose_config = yaml.safe_load(compose_content)
             services_requested = compose_config.get("services", {})
         except yaml.YAMLError as exc:
             raise HTTPException(status_code=400, detail="Invalid YAML syntax.") from exc
@@ -233,16 +233,16 @@ async def docker_compose_run(
 
         # Copy files to be mounted to target destination
         if mounts:
-            yaml_content = await copy_mount_files(
-                mounts=mounts, compose_config=yaml_content, ssh_url=docker_host
+            compose_content = await copy_mount_files(
+                mounts=mounts, compose_config=compose_content, ssh_url=docker_host
             )
 
         # Set Docker Compose context using environment variable
         os.environ["DOCKER_HOST"] = docker_host
 
-        # Save the YAML content to a temporary file
-        file_path = f"/tmp/docker-compose_{context}.yaml"
-        Path(file_path).write_text(yaml_content, encoding="utf-8")
+        # Save the Compose content to a temporary file
+        file_path = f"/tmp/docker-compose_{context}.json"
+        Path(file_path).write_text(compose_content, encoding="utf-8")
 
         # Run docker-compose command asynchronously
         command = [
