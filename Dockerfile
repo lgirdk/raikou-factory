@@ -1,7 +1,7 @@
-FROM docker:24.0.5-dind-alpine3.18
+FROM docker:24.0.6-alpine3.18
 
 LABEL maintainer="ktewari@libertyglobal.com"
-LABEL version="alpine3.18-dind-24.0.5"
+LABEL version="alpine3.18"
 
 WORKDIR /root
 

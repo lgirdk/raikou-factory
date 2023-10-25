@@ -12,13 +12,14 @@ ControlPath       ~/.ssh/control-%C
 ControlPersist    yes" >/root/.ssh/config
 }
 
+configure_ssh
+
 # Read and process the CSV file
+# TODO: Need a mechanism to add TCP port based docker context
 while IFS=',' read -r context host port username password; do
-    configure_ssh
     ssh-keyscan -H $host >>/root/.ssh/known_hosts
     sshpass -p $password ssh-copy-id -p $port $username@$host
     docker context create $context --docker host="ssh://$username@$host:$port"
-
 done </root/contexts.csv
 
 if [ $# -gt 0 ]; then
