@@ -1,0 +1,62 @@
+{
+    "bridge": {
+        "rtr-lan": {},
+        "rtr-uplink1": {},
+        "rtr-uplink2": {}
+    },
+    "container": {
+        "dhcp": [
+            {
+                "bridge": "rtr-uplink1",
+                "gateway": "172.25.1.1",
+                "gateway6": "2001:dead:beef:2::1",
+                "iface": "eth1",
+                "ip6address": "2001:dead:beef:2::20/64",
+                "ipaddress": "172.25.1.20/24"
+            }
+        ],
+        "lan": [
+            {
+                "bridge": "rtr-lan",
+                "iface": "eth1",
+                "vlan": "200"
+            }
+        ],
+        "router": [
+            {
+                "bridge": "rtr-lan",
+                "iface": "vl_eth1",
+                "vlan": "100"
+            },
+            {
+                "bridge": "rtr-lan",
+                "iface": "vl_eth2",
+                "vlan": "200"
+            },
+            {
+                "bridge": "rtr-lan",
+                "iface": "vl_eth3",
+                "vlan": "300"
+            },
+            {
+                "bridge": "rtr-uplink1",
+                "iface": "eth1"
+            },
+            {
+                "bridge": "rtr-uplink2",
+                "iface": "aux0"
+            }
+        ],
+        "wan": [
+            {
+                "bridge": "rtr-uplink1",
+                "gateway": "172.25.1.1",
+                "gateway6": "2001:dead:beef:2::1",
+                "iface": "eth1",
+                "ip6address": "2001:dead:beef:2::100/64",
+                "ipaddress": "172.25.1.100/24"
+            }
+        ]
+    },
+    "vlan_translations": []
+}
