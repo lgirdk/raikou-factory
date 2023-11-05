@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import os
 import subprocess
 from functools import cache
 from pathlib import Path
@@ -78,11 +77,16 @@ async def copy_mount_files(
     return compose_config
 
 
-async def _get_compose_service_states(file_path: str) -> list[str]:
+async def _get_compose_service_states(file_path: str, context: str) -> list[str]:
     # Check if all containers were created
-    check_command = ["docker-compose", "-f", file_path, "ps", "--services"]
-    check_process = await asyncio.create_subprocess_exec(
-        *check_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ
+    check_command = (
+        f"DOCKER_CONTEXT={context} docker compose --file={file_path} ps --services"
+    )
+
+    check_process = await asyncio.create_subprocess_shell(
+        check_command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
     stdout, _ = await check_process.communicate()
 
@@ -135,55 +139,46 @@ async def docker_inspect_containers(context: str) -> dict[str, Any]:
              corresponding inspect data as values.
     :rtype: dict[str, Any]
     """
-    original_docker_host = os.environ.get("DOCKER_HOST")
-    try:
-        # Set Docker context using environment variable
-        docker_host = docker_context_ls()[context]
-        os.environ["DOCKER_HOST"] = docker_host
 
-        file_path = f"/tmp/docker-compose_{context}.json"
+    file_path = f"/tmp/docker-compose_{context}.json"
 
-        # Run the docker-compose command asynchronously
-        command = ["docker", "compose", "-f", file_path, "ps", "-aq"]
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+    # Run the docker-compose command asynchronously
+    command = (
+        f"DOCKER_CONTEXT={context} docker compose --file={file_path} ps --services"
+    )
+    process = await asyncio.create_subprocess_shell(
+        command,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await process.communicate()
+
+    if process.returncode != 0:
+        # Return an empty dictionary if the command failed
+        return {"error": "failed to execute docker compose inspect!"}
+
+    container_ids = stdout.decode().strip().split()
+
+    container_data: dict[str, Any] = {}
+    for container_id in container_ids:
+        command = f"DOCKER_CONTEXT={context} docker inspect {container_id}"
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await process.communicate()
 
-        if process.returncode != 0:
-            # Return an empty dictionary if the command failed
-            return {"error": "failed to execute docker compose inspect!"}
-
-        container_ids = stdout.decode().strip().split()
-
-        container_data = {}
-        for container_id in container_ids:
-            command = ["docker", "inspect", container_id]
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            stdout, _ = await process.communicate()
-
-            if process.returncode == 0:
-                inspect_data = json.loads(stdout.decode().strip())
-                container_info = {}
-                if inspect_data:
-                    container_info = inspect_data[0]
-                container_data[inspect_data[0]["Name"]] = container_info
-            else:
-                container_data[container_id] = "Failed to collect Data!!"
-
-        return container_data
-    finally:
-        # Restore original DOCKER_HOST value
-        if original_docker_host:
-            os.environ["DOCKER_HOST"] = original_docker_host
+        if process.returncode == 0:
+            inspect_data = json.loads(stdout.decode().strip())
+            container_info: dict[str, str] = {}
+            if inspect_data:
+                container_info = inspect_data[0]
+            container_data[inspect_data[0]["Name"]] = container_info
         else:
-            os.environ.pop("DOCKER_HOST", None)
+            container_data[container_id] = "Failed to collect Data!!"
+
+    return container_data
 
 
 async def docker_compose_run(
@@ -219,7 +214,6 @@ async def docker_compose_run(
         raise HTTPException(status_code=409, detail="Context is already being used.")
     _CONTEXT_LOCKS[context] = True
 
-    original_docker_host = os.environ.get("DOCKER_HOST")
     services_requested: dict
     try:
         # Check Compose syntax
@@ -237,26 +231,19 @@ async def docker_compose_run(
                 mounts=mounts, compose_config=compose_content, ssh_url=docker_host
             )
 
-        # Set Docker Compose context using environment variable
-        os.environ["DOCKER_HOST"] = docker_host
-
         # Save the Compose content to a temporary file
         file_path = f"/tmp/docker-compose_{context}.json"
         Path(file_path).write_text(compose_content, encoding="utf-8")
 
         # Run docker-compose command asynchronously
-        command = [
-            "docker-compose",
-            "-f",
-            file_path,
-            "up",
-            "-d",
-            "--remove-orphans",
-        ]
-        if additional_args:
-            command.extend(additional_args.split())
-        process = await asyncio.create_subprocess_exec(
-            *command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ
+        command = (
+            f"DOCKER_CONTEXT={context} docker compose --file={file_path} "
+            f"up --detach --remove-orphans {additional_args}"
+        )
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
 
@@ -266,7 +253,7 @@ async def docker_compose_run(
                 detail=f"Failed to execute docker-compose command.\n{stderr.decode()}",
             )
 
-        container_ids = await _get_compose_service_states(file_path)
+        container_ids = await _get_compose_service_states(file_path, context)
         if len(container_ids) != len(services_requested):
             raise HTTPException(
                 status_code=500,
@@ -281,9 +268,3 @@ async def docker_compose_run(
     finally:
         # Release the lock for the context
         del _CONTEXT_LOCKS[context]
-
-        # Restore original DOCKER_HOST value
-        if original_docker_host:
-            os.environ["DOCKER_HOST"] = original_docker_host
-        else:
-            os.environ.pop("DOCKER_HOST", None)
