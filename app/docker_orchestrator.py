@@ -235,6 +235,22 @@ async def docker_compose_run(
         file_path = f"/tmp/docker-compose_{context}.json"
         Path(file_path).write_text(compose_content, encoding="utf-8")
 
+        # Prune the docker network on the target context before deploying
+        command = (
+            f"DOCKER_CONTEXT={context} docker network prune --force"
+        )
+        network_prune_process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await network_prune_process.communicate()
+        if network_prune_process.returncode != 0:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to execute docker network prune command.\n{stderr.decode()}",
+            )
+
         # Run docker-compose command asynchronously
         command = (
             f"DOCKER_CONTEXT={context} docker compose --file={file_path} "
