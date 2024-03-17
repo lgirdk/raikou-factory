@@ -1,4 +1,4 @@
-FROM docker:24.0.6-alpine3.18
+FROM docker:25.0.4-alpine3.19
 
 LABEL maintainer="ktewari@libertyglobal.com"
 LABEL version="alpine3.18"
@@ -9,15 +9,16 @@ COPY requirements.txt requirements.txt
 COPY ./app app
 
 RUN apk add -u --no-cache \
-    python3=3.11.6-r0 \
-    py3-pip=23.1.2-r0 \
-    bash=5.2.15-r5 \
-    openrc=0.48-r0 \
-    openssh=9.3_p2-r1 \
+    python3=3.11.8-r0 \
+    py3-pip=23.3.1-r0 \
+    py3-cffi=1.16.0-r0 \
+    bash=5.2.21-r0 \
+    openrc=0.52.1-r2 \
+    openssh=9.6_p1-r0 \
     sshpass=1.10-r0 \
-    uuidgen=2.38.1-r8 \
-    iproute2=6.3.0-r0 \
-    supervisor=4.2.5-r2 && \
+    uuidgen=2.39.3-r0 \
+    iproute2=6.6.0-r0 \
+    supervisor=4.2.5-r4 && \
     \
     # Configure SSH key
     /usr/bin/ssh-keygen -t rsa -b 4096 -N '' -f /root/.ssh/id_rsa && \
@@ -25,8 +26,9 @@ RUN apk add -u --no-cache \
     sed -i 's,#PermitRootLogin.*$,PermitRootLogin yes,1' /etc/ssh/sshd_config && \
     \
     # Install python dependencies
-    python3 -m pip --no-cache-dir install -U pip wheel && \
-    python3 -m pip --no-cache-dir install -r requirements.txt  && \
+    # Handle PEP668
+    python3 -m pip --no-cache-dir install --break-system-packages -U pip wheel && \
+    python3 -m pip --no-cache-dir install --break-system-packages -r requirements.txt  && \
     chmod +x app/init
 
 
