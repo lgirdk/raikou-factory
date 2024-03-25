@@ -83,7 +83,8 @@ async def copy_mount_files(
 async def _get_compose_service_states(file_path: str, context: str) -> list[str]:
     # Check if all containers were created
     check_command = (
-        f"DOCKER_CONTEXT={context} docker compose --file={file_path} ps --services"
+        f"DOCKER_CONTEXT={context} docker "
+        f"compose --file={file_path} ps --format '{{{{.Names}}}}'"
     )
 
     check_process = await asyncio.create_subprocess_shell(
@@ -147,7 +148,8 @@ async def docker_inspect_containers(context: str) -> dict[str, Any]:
 
     # Run the docker-compose command asynchronously
     command = (
-        f"DOCKER_CONTEXT={context} docker compose --file={file_path} ps --services"
+        f"DOCKER_CONTEXT={context} docker "
+        f"compose --file={file_path} ps --format '{{{{.Names}}}}'"
     )
     process = await asyncio.create_subprocess_shell(
         command,
