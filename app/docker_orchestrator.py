@@ -144,7 +144,7 @@ async def docker_inspect_containers(context: str) -> dict[str, Any]:
     :rtype: dict[str, Any]
     """
 
-    file_path = f"/tmp/docker-compose_{context}.json"
+    file_path = f"/tmp/{context}/docker-compose.json"
 
     # Run the docker-compose command asynchronously
     command = (
@@ -237,7 +237,8 @@ async def docker_compose_run(
             )
 
         # Save the Compose content to a temporary file
-        file_path = f"/tmp/docker-compose_{context}.json"
+        os.makedirs(f"/tmp/{context}", exist_ok=True)
+        file_path = f"/tmp/{context}/docker-compose.json"
         Path(file_path).write_text(compose_content, encoding="utf-8")
 
         # Prune the docker network on the target context before deploying
