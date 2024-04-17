@@ -66,21 +66,6 @@ repos:
             files: \.py$
             args: [--in-place]
             stages: [commit]
-    - repo: https://github.com/timothycrosley/isort
-      rev: 5.13.2
-      hooks:
-          - id: isort
-            args: [--profile, black]
-            name: isort
-            entry: isort
-            require_serial: true
-            language: python
-            types: [python]
-            stages: [commit]
-    - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.3.3
-      hooks:
-          - id: ruff
     - repo: https://github.com/asottile/pyupgrade
       rev: v3.15.2
       hooks:
@@ -103,12 +88,16 @@ repos:
           - id: yamllint
             args: [--format, parsable]
             stages: [commit]
-    - repo: https://github.com/psf/black
-      rev: 24.4.0
+    - repo: https://github.com/astral-sh/ruff-pre-commit
+      rev: v0.3.3
       hooks:
-          - id: black
-            description: 'Black: The uncompromising Python code formatter'
-            args: [--safe]
+          - id: ruff
+            args: [check, --select, I, --fix]
+            name: ruff-isort
+            stages: [commit]
+          - id: ruff-format
+            stages: [commit]
+          - id: ruff
             stages: [commit]
     - repo: https://github.com/akaihola/darglint2
       rev: v1.8.2
