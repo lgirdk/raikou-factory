@@ -4,6 +4,8 @@ import asyncio
 
 import asyncssh
 
+_ATTEMPTS_LIMIT = 3
+
 
 async def copy_files(
     files: list[tuple[str, str]], ip_address: str, username: str, port: int
@@ -12,31 +14,35 @@ async def copy_files(
 
     Files are copied over SSH using asyncssh.
 
-    :param files: The local path and remote path for each file.
+    :param files: The local path and remote path for each file
     :type files: list[tuple[str, str]]
-    :param ip_address: Remote server IP address.
+    :param ip_address: Remote server IP address
     :type ip_address: str
-    :param username: Remote server username.
+    :param username: Remote server username
     :type username: str
-    :param port: Remote server port.
+    :param port: Remote server port
     :type port: int
     """
 
-    async def _copy_file(local_path: str, remote_path: str, sftp: asyncssh.SFTPClient):
-        for attempt in range(3):
+    async def _copy_file(
+        local_path: str, remote_path: str, sftp: asyncssh.SFTPClient
+    ) -> None:
+        for attempt in range(_ATTEMPTS_LIMIT):
             try:
                 await sftp.put(local_path, remote_path)
-                return
+                return  # noqa: TRY300
             except asyncssh.Error as exc:
-                print(f"Error occurred while copying file: {exc}")
-                if attempt < 3:
+                print(f"Error occurred while copying file: {exc}")  # noqa: T201
+                if attempt < _ATTEMPTS_LIMIT:
                     await asyncio.sleep(1)
                 else:
                     raise
 
-    async with asyncssh.connect(ip_address, username=username, port=port) as conn:
-        async with conn.start_sftp_client() as sftp:
-            async with asyncio.TaskGroup() as group:
-                for local_path, remote_path in files:
-                    task = _copy_file(local_path, remote_path, sftp)
-                    group.create_task(task)
+    async with (
+        asyncssh.connect(ip_address, username=username, port=port) as conn,
+        conn.start_sftp_client() as sftp,
+        asyncio.TaskGroup() as group,
+    ):
+        for local_path, remote_path in files:
+            task = _copy_file(local_path, remote_path, sftp)
+            group.create_task(task)

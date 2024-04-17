@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import os
 import subprocess
 import tempfile
 from functools import cache
@@ -19,6 +18,8 @@ from typing_extensions import TypedDict
 
 # Dictionary to store context locks
 _CONTEXT_LOCKS: dict[str, bool] = {}
+
+_TMP_PATH = Path("/tmp/")  # noqa: S108
 
 
 class VolumeMounts(TypedDict):
@@ -61,8 +62,9 @@ async def copy_mount_files(
 
         # Store the file in /tmp first before SFTP put.
         file_name = Path(mount["source"]).name
-        Path(f"/tmp/{file_name}").write_text(mount["file"], encoding="utf-8")
-        files_to_copy.append((f"/tmp/{file_name}", mount["source"]))
+        Path(_TMP_PATH / file_name).write_text(mount["file"], encoding="utf-8")
+        temp_file = Path(_TMP_PATH / file_name)
+        files_to_copy.append(temp_file, mount["source"])
 
     try:
         ssh = urlparse(ssh_url)
@@ -128,23 +130,20 @@ def docker_context_ls() -> dict[str, str]:
 
 
 async def docker_inspect_containers(context: str) -> dict[str, Any]:
-    """
-    Inspect containers using docker-compose and docker inspect commands.
+    """Inspect containers using docker-compose and docker inspect commands.
 
     This function inspects all containers in the Docker Compose project
     associated with the specified Docker context. It collects the container
     details by running the `docker-compose ps` command to obtain the container
     IDs, and then runs the `docker inspect` command for each container ID.
 
-    :param context: The Docker context associated with the Docker Compose
-                    project.
+    :param context: The Docker context associated with the Docker Compose project.
     :type context: str
     :return: A dictionary containing the container IDs as keys and their
              corresponding inspect data as values.
     :rtype: dict[str, Any]
     """
-
-    file_path = f"/tmp/{context}/docker-compose.json"
+    file_path = f"/tmp/{context}/docker-compose.json"  # noqa: S108
 
     # Run the docker-compose command asynchronously
     command = (
@@ -237,8 +236,8 @@ async def docker_compose_run(
             )
 
         # Save the Compose content to a temporary file
-        os.makedirs(f"/tmp/{context}", exist_ok=True)
-        file_path = f"/tmp/{context}/docker-compose.json"
+        Path.mkdir(_TMP_PATH / context, exist_ok=True, parents=True)
+        file_path = Path(_TMP_PATH / context / "docker-compose.json")
         Path(file_path).write_text(compose_content, encoding="utf-8")
 
         # Prune the docker network on the target context before deploying
@@ -274,7 +273,7 @@ async def docker_compose_run(
                 detail=f"Failed to execute docker-compose command.\n{stderr.decode()}",
             )
 
-        container_ids = await _get_compose_service_states(file_path, context)
+        container_ids = await _get_compose_service_states(str(file_path), context)
         if len(container_ids) != len(services_requested):
             raise HTTPException(
                 status_code=500,
@@ -360,7 +359,7 @@ async def update_file_on_remote_container(
     finally:
         # Cleanup: delete the temporary file if it still exists
         if temp_file:
-            os.remove(temp_file.name)
+            Path.unlink(Path(temp_file.name))
 
 
 async def update_json_file_on_remote_container(
@@ -369,7 +368,7 @@ async def update_json_file_on_remote_container(
     json_content: dict,
     context: str,
     merge_schema: dict | None = None,
-) -> str:
+) -> str:  # typing: ignore[too-many-local-variables]
     """Update a JSON file inside a Docker container on a remote host by merging content.
 
     :param container_id: The ID of the Docker container.
@@ -458,4 +457,4 @@ async def update_json_file_on_remote_container(
     finally:
         # Cleanup: delete the temporary file
         if temp_file:
-            os.remove(temp_file.name)
+            Path.unlink(Path(temp_file.name))
