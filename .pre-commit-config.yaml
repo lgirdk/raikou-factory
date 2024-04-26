@@ -3,7 +3,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
     - repo: https://github.com/commitizen-tools/commitizen
-      rev: v3.22.0
+      rev: v3.24.0
       hooks:
           - id: commitizen
             stages: [commit-msg]
@@ -89,7 +89,7 @@ repos:
             args: [--format, parsable]
             stages: [commit]
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.3.3
+      rev: v0.4.2
       hooks:
           - id: ruff
             args: [check, --select, I, --fix]
@@ -105,6 +105,6 @@ repos:
           - id: darglint2
             args: [--docstring-style, sphinx]
     - repo: https://github.com/hadolint/hadolint
-      rev: v2.12.1-beta
+      rev: v2.13.0-beta
       hooks:
           - id: hadolint
