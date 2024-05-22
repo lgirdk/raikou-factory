@@ -17,7 +17,10 @@ from sftp import copy_files
 from typing_extensions import TypedDict
 
 # Dictionary to store context locks
-_CONTEXT_LOCKS: dict[str, bool] = {}
+_CONTEXT_LOCKS: dict[str, asyncio.Lock] = {}
+
+# Dictionary to hold locks for each file in each container
+_FILE_LOCKS: dict[str, asyncio.Lock] = {}
 
 _TMP_PATH = Path("/tmp/")  # noqa: S108
 
@@ -207,19 +210,16 @@ async def docker_compose_run(
     :param additional_args: additional compose cli args, example
                             ```--force-recreate --pull-always```
     :type additional_args: Optional[str]
-    :raises HTTPException: error code 409 if target context already in use.
     :raises HTTPException: error code 400 if invalid Compose file provided.
     :return: Dictionary containing the stdout, stderr, and returncode of
              the docker-compose command.
     :rtype: dict[str, str|int]
     """
     # Acquire the lock for the context
-    if _CONTEXT_LOCKS.get(context):
-        raise HTTPException(status_code=409, detail="Context is already being used.")
-    _CONTEXT_LOCKS[context] = True
+    context_lock = _CONTEXT_LOCKS.setdefault(context, asyncio.Lock())
 
     services_requested: dict
-    try:
+    async with context_lock:
         # Check Compose syntax
         try:
             compose_config = yaml.safe_load(compose_content)
@@ -285,9 +285,6 @@ async def docker_compose_run(
             "stderr": stderr.decode(),
             "returncode": process.returncode,
         }
-    finally:
-        # Release the lock for the context
-        del _CONTEXT_LOCKS[context]
 
 
 async def update_file_on_remote_container(
@@ -386,75 +383,83 @@ async def update_json_file_on_remote_container(
     :rtype: str
     """
     temp_file = None
-    try:
-        # Get existing JSON content from the file
-        command = f"DOCKER_CONTEXT={context} docker exec {container_id} cat {file_path}"
-        process = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
+    file_lock = _FILE_LOCKS.setdefault(f"{container_id}-{file_path}", asyncio.Lock())
 
-        if process.returncode != 0:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to read JSON file: {stderr.decode()}"
+    async with file_lock:
+        try:
+            # Get existing JSON content from the file
+            command = (
+                f"DOCKER_CONTEXT={context} docker exec {container_id} cat {file_path}"
+            )
+            process = await asyncio.create_subprocess_shell(
+                command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to read JSON file: {stderr.decode()}",
+                )
+
+            existing_content = json.loads(stdout.decode()) if stdout else {}
+
+            # Merge new JSON content into existing content using merge_schema if provided
+            if merge_schema:
+                merged_content = merge(existing_content, json_content, merge_schema)
+            else:
+                merged_content = merge(existing_content, json_content)
+
+            # Create a temporary file to store the merged JSON content locally
+            temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+            temp_file.write(json.dumps(merged_content, indent=4))
+            temp_file.close()
+
+            # Copy the temporary file into the container
+            copy_command = (
+                f"DOCKER_CONTEXT={context} docker cp "
+                f"{temp_file.name} {container_id}:{temp_file.name}"
+            )
+            copy_process = await asyncio.create_subprocess_shell(
+                copy_command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, copy_stderr = await copy_process.communicate()
+
+            if copy_process.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to copy temporary "
+                    f"file to container: {copy_stderr.decode()}",
+                )
+
+            # Execute a command inside the container to move the temporary file
+            # to the desired location and delete it
+            move_command = (
+                f"DOCKER_CONTEXT={context} docker exec {container_id} "
+                f"bash -c 'cat {temp_file.name} > {file_path}; rm {temp_file.name}'"
+            )
+            move_process = await asyncio.create_subprocess_shell(
+                move_command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, move_stderr = await move_process.communicate()
+
+            if move_process.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to update JSON file "
+                    f"inside container: {move_stderr.decode()}",
+                )
+
+            return (
+                f"JSON file '{file_path}' updated "
+                f"successfully in container '{container_id}'"
             )
 
-        existing_content = json.loads(stdout.decode()) if stdout else {}
-
-        # Merge new JSON content into existing content using merge_schema if provided
-        if merge_schema:
-            merged_content = merge(existing_content, json_content, merge_schema)
-        else:
-            merged_content = merge(existing_content, json_content)
-
-        # Create a temporary file to store the merged JSON content locally
-        temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
-        temp_file.write(json.dumps(merged_content, indent=4))
-        temp_file.close()
-
-        # Copy the temporary file into the container
-        copy_command = (
-            f"DOCKER_CONTEXT={context} docker cp "
-            f"{temp_file.name} {container_id}:{temp_file.name}"
-        )
-        copy_process = await asyncio.create_subprocess_shell(
-            copy_command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, copy_stderr = await copy_process.communicate()
-
-        if copy_process.returncode != 0:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to copy temporary "
-                f"file to container: {copy_stderr.decode()}",
-            )
-
-        # Execute a command inside the container to move the temporary file
-        # to the desired location and delete it
-        move_command = (
-            f"DOCKER_CONTEXT={context} docker exec {container_id} "
-            f"bash -c 'cat {temp_file.name} > {file_path}; rm {temp_file.name}'"
-        )
-        move_process = await asyncio.create_subprocess_shell(
-            move_command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        _, move_stderr = await move_process.communicate()
-
-        if move_process.returncode != 0:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to update JSON file "
-                f"inside container: {move_stderr.decode()}",
-            )
-
-        return (
-            f"JSON file '{file_path}' updated "
-            f"successfully in container '{container_id}'"
-        )
-
-    finally:
-        # Cleanup: delete the temporary file
-        if temp_file:
-            Path.unlink(Path(temp_file.name))
+        finally:
+            # Cleanup: delete the temporary file
+            if temp_file:
+                Path.unlink(Path(temp_file.name))
