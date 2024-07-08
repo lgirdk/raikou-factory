@@ -7,11 +7,11 @@ services:
         build:
             context: https://github.com/lgirdk/raikou-net.git#main:components/router  # yamllint disable-line rule:line-length
             tags:
-                - "router:frr_9.0"
+                - router:frr_9.0
         ports:
-            - "4000:22"
+            - 4000:22
         environment:
-            DHCP_RELAY: "172.25.1.20,2001:dead:beef:2::20"
+            DHCP_RELAY: 172.25.1.20,2001:dead:beef:2::20
         privileged: true
         hostname: router
         depends_on:
@@ -23,11 +23,11 @@ services:
         build:
             context: https://github.com/lgirdk/raikou-net.git#main:components/wan  # yamllint disable-line rule:line-length
             tags:
-                - "wan:lwds_lite_1.0"
+                - wan:lwds_lite_1.0
         ports:
-            - "4001:22"
+            - 4001:22
         environment:
-            DNS_UPSTREAM: "172.30.180.2"
+            DNS_UPSTREAM: 172.30.180.2
             LEGACY: no  # yamllint disable-line rule:truthy
         privileged: true
         hostname: wan
@@ -40,9 +40,9 @@ services:
         build:
             context: https://github.com/lgirdk/raikou-net.git#main:components/lan  # yamllint disable-line rule:line-length
             tags:
-                - "lan:container_utils_1.1.1"
+                - lan:container_utils_1.1.1
         ports:
-            - "4002:22"
+            - 4002:22
         environment:
             LEGACY: no  # yamllint disable-line rule:truthy
         privileged: true
@@ -56,9 +56,9 @@ services:
         build:
             context: https://github.com/lgirdk/raikou-net.git#main:components/dhcp  # yamllint disable-line rule:line-length
             tags:
-                - "dhcp:kea_dhcp_2.5.2"
+                - dhcp:kea_dhcp_2.5.2
         ports:
-            - "4003:22"
+            - 4003:22
         environment:
             LEGACY: no  # yamllint disable-line rule:truthy
         privileged: true
@@ -73,9 +73,9 @@ services:
             tags:
                 - raikou-net:alpine3.18-dind-ovs_2.17
         volumes:
-            - "/lib/modules:/lib/modules"
-            - "/var/run/docker.sock:/var/run/docker.sock"
-            - "$NW_CONFIG:/root/config.json"
+            - /lib/modules:/lib/modules
+            - /var/run/docker.sock:/var/run/docker.sock
+            - $NW_CONFIG:/root/config.json
         privileged: true
         pid: host
         network_mode: host
@@ -91,7 +91,7 @@ services:
         build:
             context: https://github.com/lgirdk/raikou-net.git#main:components/ssh  # yamllint disable-line rule:line-length
             tags:
-                - "ssh:1.9.2p1"
+                - ssh:1.9.2p1
 
 networks:
     default:

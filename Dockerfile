@@ -9,7 +9,7 @@ COPY requirements.txt requirements.txt
 COPY ./app app
 
 RUN apk add -u --no-cache \
-    python3=3.11.8-r0 \
+    python3=3.11.9-r0 \
     py3-pip=23.3.1-r0 \
     py3-cffi=1.16.0-r0 \
     bash=5.2.21-r0 \
